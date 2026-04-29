@@ -41,3 +41,21 @@ TagManager:
   - name: Default
     uniqueID: 0
     locked: 0
+  - name: Background
+    uniqueID: 2447638033
+    locked: 0
+  - name: Machine
+    uniqueID: 954746369
+    locked: 0
+  - name: Reels
+    uniqueID: 2845000781
+    locked: 0
+  - name: Symbols
+    uniqueID: 2438990983
+    locked: 0
+  - name: UI
+    uniqueID: 19367831
+    locked: 0
+  - name: Popup
+    uniqueID: 30912835
+    locked: 0
