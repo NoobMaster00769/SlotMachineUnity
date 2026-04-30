@@ -110,13 +110,13 @@ public class ReelController : MonoBehaviour
         }
     }
 
-    public void SetHighlight(bool highlight)
+    [SerializeField] private Animator _midSymbolAnimator;
+
+    public void SetHighlight(bool on)
     {
-        // Only highlight the center slot (index 1)
         if (_visibleSlots.Length > 1)
-        {
-            _visibleSlots[1].color =
-                highlight ? Color.yellow : Color.white;
-        }
+            _visibleSlots[1].color = on ? Color.yellow : Color.white;
+        if (_midSymbolAnimator != null)
+            _midSymbolAnimator.SetBool("IsWinning", on);
     }
 }
