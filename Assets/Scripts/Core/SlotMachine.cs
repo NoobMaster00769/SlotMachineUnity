@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using UnityEngine;
 
@@ -15,20 +15,48 @@ public class SlotMachine : MonoBehaviour
 
     public event Action<int> OnSpinComplete;
     public event Action OnSpinStarted;
+    public event Action<int> OnFreeSpinsAwarded;
+    public event Action<int> OnFreeSpinCountChanged;
+    public event Action<int> OnStreakChanged;
+    public event Action<long> OnJackpotChanged;
 
     private bool _isSpinning;
+    private int _freeSpinsRemaining;
+    private int _winStreak;
+    private long _jackpotPool;
+
+    private const long _jackpotSeed = 500;
 
     private void Start()
     {
-        // Build weighted strips once at start
+        // Initialize reels once
         foreach (var reel in _reels)
             reel.BuildWeightedStrip(_availableSymbols);
+
+        // Seed jackpot so it’s never zero
+        _jackpotPool = _jackpotSeed;
+        OnJackpotChanged?.Invoke(_jackpotPool);
     }
 
     public void Spin(int betAmount)
     {
-        // Avoid overlapping spins 
         if (_isSpinning) return;
+
+        // Small % of every bet goes into jackpot pool
+        _jackpotPool += (long)(betAmount * 0.05f);
+        OnJackpotChanged?.Invoke(_jackpotPool);
+
+        StartCoroutine(SpinSequence(betAmount));
+    }
+
+    public bool HasFreeSpins => _freeSpinsRemaining > 0;
+
+    public void SpinFree(int betAmount)
+    {
+        if (_isSpinning || _freeSpinsRemaining <= 0) return;
+
+        _freeSpinsRemaining--;
+        OnFreeSpinCountChanged?.Invoke(_freeSpinsRemaining);
 
         StartCoroutine(SpinSequence(betAmount));
     }
@@ -38,17 +66,14 @@ public class SlotMachine : MonoBehaviour
         _isSpinning = true;
         OnSpinStarted?.Invoke();
 
-        // Clear previous highlights
+        // Reset highlights before new spin
         foreach (var reel in _reels)
             reel.SetHighlight(false);
 
-        // Start reels with staggered delay 
+        // Start reels with delay (adds anticipation)
         for (int i = 0; i < _reels.Length; i++)
-        {
             StartCoroutine(_reels[i].SpinAndStop(delay: i * _reelStopDelay));
-        }
 
-        // Wait long enough for all reels to stop
         float totalWait = _reels[0].GetSpinDuration() +
                           (_reels.Length - 1) * _reelStopDelay + 0.1f;
 
@@ -62,51 +87,79 @@ public class SlotMachine : MonoBehaviour
 
     private int EvaluateResult(int betAmount)
     {
-        // Collect final symbols
         SymbolData[] results = new SymbolData[_reels.Length];
         for (int i = 0; i < _reels.Length; i++)
             results[i] = _reels[i].Result;
 
-        // Find first non-wild symbol to define the combo
-        SymbolData effectiveSymbol = null;
+        // Special case: all wild → reward free spins instead of payout
+        bool allWild = true;
         foreach (var r in results)
+            if (!r.isWild) { allWild = false; break; }
+
+        if (allWild)
         {
-            if (!r.isWild)
-            {
-                effectiveSymbol = r;
-                break;
-            }
+            int spinsAwarded = 5;
+            _freeSpinsRemaining += spinsAwarded;
+            OnFreeSpinsAwarded?.Invoke(spinsAwarded);
+
+            // Reset streak (free spins act as a separate phase)
+            _winStreak = 0;
+            OnStreakChanged?.Invoke(_winStreak);
+
+            return 0;
         }
 
-        // Edge case: all wilds
+        // Determine effective symbol (first non-wild)
+        SymbolData effectiveSymbol = null;
+        foreach (var r in results)
+            if (!r.isWild) { effectiveSymbol = r; break; }
+
         if (effectiveSymbol == null)
             effectiveSymbol = results[0];
 
-        // Check if all symbols match (considering wilds)
+        // Check if it's a valid win
         bool isWin = true;
         foreach (var r in results)
-        {
-            if (!r.isWild && r != effectiveSymbol)
-            {
-                isWin = false;
-                break;
-            }
-        }
+            if (!r.isWild && r != effectiveSymbol) { isWin = false; break; }
 
-        if (!isWin) return 0;
+        if (!isWin)
+        {
+            _winStreak = 0;
+            OnStreakChanged?.Invoke(_winStreak);
+            return 0;
+        }
 
         // Highlight winning line
         foreach (var reel in _reels)
             reel.SetHighlight(true);
 
-        // Count wilds for multiplier boost
+        _winStreak++;
+        OnStreakChanged?.Invoke(_winStreak);
+
+        // Combine multipliers (symbol + wilds + streak)
         int wildCount = 0;
         foreach (var r in results)
             if (r.isWild) wildCount++;
 
-        int multiplier = effectiveSymbol.payoutMultiplier *
-                         (int)Mathf.Pow(2, wildCount);
+        int streakMultiplier = Mathf.Min(1 + (_winStreak / 5), 3);
+        int wildMultiplier = (int)Mathf.Pow(2, wildCount);
 
-        return betAmount * multiplier;
+        int totalMultiplier =
+            effectiveSymbol.payoutMultiplier *
+            wildMultiplier *
+            streakMultiplier;
+
+        return betAmount * totalMultiplier;
+    }
+
+    public long ClaimJackpot()
+    {
+        // Reset jackpot after claim
+        long amount = _jackpotPool;
+
+        _jackpotPool = _jackpotSeed;
+        OnJackpotChanged?.Invoke(_jackpotPool);
+
+        return amount;
     }
 }

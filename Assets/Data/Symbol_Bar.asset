@@ -14,6 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   symbolName: 
   sprite: {fileID: 21300000, guid: 5b9c7b45ecb958947a9c23bc9df8073e, type: 3}
-  payoutMultiplier: 8
-  weight: 3
+  payoutMultiplier: 10
+  weight: 2
   isWild: 0

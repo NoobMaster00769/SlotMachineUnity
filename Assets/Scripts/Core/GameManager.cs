@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using UnityEngine;
 
 public class GameManager : MonoBehaviour
 {
+    // Central access point for game state
     public static GameManager Instance { get; private set; }
 
     [Header("Starting Values")]
@@ -11,22 +12,30 @@ public class GameManager : MonoBehaviour
     [SerializeField] private int _maxBet = 100;
     [SerializeField] private int _betStep = 10;
 
-    // Core gameplay values
     public int Balance { get; private set; }
     public int CurrentBet { get; private set; }
     public bool IsSpinning { get; private set; }
 
-    // Events for UI / feedback
+    // Core gameplay events
     public event Action<int> OnBalanceChanged;
     public event Action<int> OnBetChanged;
     public event Action<int> OnWin;
     public event Action OnLoss;
     public event Action OnSpinStarted;
 
+    // Bonus system events
+    public event Action<int> OnFreeSpinsAwarded;
+    public event Action<int> OnFreeSpinCountChanged;
+    public event Action<int> OnStreakChanged;
+    public event Action<long> OnJackpotChanged;
+    public event Action OnGameOver;
+    public event Action OnFreeSpinWin;
+
     [SerializeField] private SlotMachine _slotMachine;
 
     private void Awake()
     {
+        // Prevent duplicate managers (common Unity pitfall)
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
@@ -38,11 +47,10 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
-        // Initialize starting state
         Balance = _startingBalance;
         CurrentBet = _minBet;
 
-        // Hook into slot machine events
+        // Forward slot machine events to UI layer
         _slotMachine.OnSpinComplete += HandleSpinResult;
         _slotMachine.OnSpinStarted += () =>
         {
@@ -50,24 +58,35 @@ public class GameManager : MonoBehaviour
             OnSpinStarted?.Invoke();
         };
 
-        // Push initial values to UI
+        _slotMachine.OnFreeSpinsAwarded += count => OnFreeSpinsAwarded?.Invoke(count);
+        _slotMachine.OnFreeSpinCountChanged += count => OnFreeSpinCountChanged?.Invoke(count);
+        _slotMachine.OnStreakChanged += streak => OnStreakChanged?.Invoke(streak);
+        _slotMachine.OnJackpotChanged += pool => OnJackpotChanged?.Invoke(pool);
+
+        // Push initial UI state
         OnBalanceChanged?.Invoke(Balance);
         OnBetChanged?.Invoke(CurrentBet);
     }
 
     public void RequestSpin()
     {
-        // Prevent double spins
         if (IsSpinning) return;
 
-        // Basic balance check
-        if (Balance < CurrentBet)
+        // Free spins override normal betting
+        if (_slotMachine.HasFreeSpins)
         {
-            Debug.Log("Insufficient balance!");
+            _slotMachine.SpinFree(CurrentBet);
             return;
         }
 
-        // Deduct bet immediately (feels more responsive)
+        // No money left → game over
+        if (Balance < CurrentBet)
+        {
+            OnGameOver?.Invoke();
+            return;
+        }
+
+        // Deduct bet and spin
         Balance -= CurrentBet;
         OnBalanceChanged?.Invoke(Balance);
 
@@ -78,7 +97,6 @@ public class GameManager : MonoBehaviour
     {
         if (IsSpinning) return;
 
-        // Clamp to max so we don�t overshoot
         CurrentBet = Mathf.Min(CurrentBet + _betStep, _maxBet);
         OnBetChanged?.Invoke(CurrentBet);
     }
@@ -87,7 +105,6 @@ public class GameManager : MonoBehaviour
     {
         if (IsSpinning) return;
 
-        // Clamp to min for same reason
         CurrentBet = Mathf.Max(CurrentBet - _betStep, _minBet);
         OnBetChanged?.Invoke(CurrentBet);
     }
@@ -98,7 +115,6 @@ public class GameManager : MonoBehaviour
 
         if (payout > 0)
         {
-            // Add winnings back
             Balance += payout;
             OnBalanceChanged?.Invoke(Balance);
             OnWin?.Invoke(payout);
@@ -107,5 +123,20 @@ public class GameManager : MonoBehaviour
         {
             OnLoss?.Invoke();
         }
+
+        // Soft fail condition (keeps tension instead of immediate loss)
+        if (Balance <= 50 && !_slotMachine.HasFreeSpins)
+            OnGameOver?.Invoke();
+    }
+
+    public void RestartGame()
+    {
+        // Reset everything to initial state
+        Balance = _startingBalance;
+        CurrentBet = _minBet;
+        IsSpinning = false;
+
+        OnBalanceChanged?.Invoke(Balance);
+        OnBetChanged?.Invoke(CurrentBet);
     }
 }
