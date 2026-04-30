@@ -245,11 +245,15 @@ public class ReelController : MonoBehaviour
 
     public void SetHighlight(bool on)
     {
-        // Highlight middle symbol (payline)
         if (_visibleSlots.Length > 1)
-            _visibleSlots[1].color = on ? Color.yellow : Color.white;
+        {
+            var mid = _visibleSlots[1];
 
-        // Trigger win animation if available
+            mid.color = on ? Color.yellow : Color.white;
+
+            mid.transform.localScale = on ? Vector3.one * 1.2f : Vector3.one;
+        }
+
         if (_midSymbolAnimator != null)
             _midSymbolAnimator.SetBool("IsWinning", on);
     }

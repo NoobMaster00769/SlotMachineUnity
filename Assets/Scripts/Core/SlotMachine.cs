@@ -162,4 +162,11 @@ public class SlotMachine : MonoBehaviour
 
         return amount;
     }
+
+    public void ResetHighlights()
+    {
+        foreach (var reel in _reels)
+            reel.SetHighlight(false);
+    }
+
 }

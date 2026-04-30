@@ -1,6 +1,7 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using System.Collections;
 
 public class UIManager : MonoBehaviour
 {
@@ -16,8 +17,12 @@ public class UIManager : MonoBehaviour
     [Header("Win Display")]
     [SerializeField] private PopupManager _popupManager;
 
+    [SerializeField] private SlotMachine _slotMachine;
+
     private void Start()
     {
+        _popupManager.OnPopupFinished += EnableButtons;
+
         // Hook into GameManager events so UI stays in sync
         GameManager.Instance.OnBalanceChanged += UpdateBalance;
         GameManager.Instance.OnBetChanged += UpdateBet;
@@ -29,6 +34,12 @@ public class UIManager : MonoBehaviour
         _spinButton.onClick.AddListener(GameManager.Instance.RequestSpin);
         _betIncreaseButton.onClick.AddListener(GameManager.Instance.IncreaseBet);
         _betDecreaseButton.onClick.AddListener(GameManager.Instance.DecreaseBet);
+        
+        _popupManager.OnPopupFinished += () =>
+        {
+            EnableButtons();
+            _slotMachine.ResetHighlights(); 
+        };
     }
 
     private void UpdateBalance(int balance)
@@ -45,16 +56,17 @@ public class UIManager : MonoBehaviour
 
     private void HandleWin(int payout)
     {
-        // Re-enable controls after spin ends
-        EnableButtons();
 
-        // Show win popup
         _popupManager.ShowWin(payout);
     }
 
     private void HandleLoss()
     {
-        // No popup for loss (keeping it simple for now)
+        StartCoroutine(EnableAfterDelay());
+    }
+    private IEnumerator EnableAfterDelay()
+    {
+        yield return new WaitForSeconds(0.8f); // match popup delay
         EnableButtons();
     }
 

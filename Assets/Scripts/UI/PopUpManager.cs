@@ -1,13 +1,16 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using System;
 
 public class PopupManager : MonoBehaviour
 {
     [SerializeField] private TextMeshProUGUI _winAmountText;
     [SerializeField] private CanvasGroup _popupCanvasGroup;
     [SerializeField] private float _displayDuration = 2.5f;
+
+    public event Action OnPopupFinished;
 
     private void Start()
     {
@@ -19,11 +22,19 @@ public class PopupManager : MonoBehaviour
 
     public void ShowWin(int amount)
     {
-        _winAmountText.text = $"+{amount}G\nYOU WIN!";
+        StopAllCoroutines(); // prevents stacking
 
-        // Trigger popup animation sequence
-        StartCoroutine(ShowAndHide());
+        _winAmountText.text = $"+{amount}G\nYOU WIN!";
+        StartCoroutine(DelayedShow());
     }
+
+    private IEnumerator DelayedShow()
+    {
+        yield return new WaitForSeconds(0.8f); 
+
+        yield return StartCoroutine(ShowAndHide());
+    }
+
 
     private IEnumerator ShowAndHide()
     {
@@ -35,6 +46,7 @@ public class PopupManager : MonoBehaviour
 
         // Fade out again
         yield return StartCoroutine(Fade(1f, 0f, 0.3f));
+        OnPopupFinished?.Invoke();
     }
 
     private IEnumerator Fade(float from, float to, float duration)
